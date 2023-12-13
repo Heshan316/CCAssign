@@ -1,0 +1,357 @@
+#!/usr/bin/python 
+
+import subprocess
+import re
+import os
+import stat 
+
+endpath = os.getcwd() + "/report.txt"
+report_file = open(endpath, 'w')
+
+def initial_head():
+
+    report_file.write('\n')
+    report_file.write("-------------------------------------------------\n")
+    report_file.write("---------------Intial Setup Compliance-----------\n")
+    report_file.write("-------------------------------------------------\n")
+
+
+def run_apt_cache_policy():
+
+    try:
+        result = subprocess.run(['apt-cache', 'policy'], check=True, capture_output=True, text=True)
+        print (result.stdout)
+        print ("APT cache policy view completed")
+        report_file.write("                  -APT cache policy view completed-\n")
+    except subprocess.CalledProcessError as e:
+        print ("Error has occurred when running 'apt-cache policy': {e}")
+        report_file.write("                  -Error has occurred when running APT cache policy-\n")
+
+
+def run_apt_key_list():
+
+    try:
+        result = subprocess.run(['apt-key', 'list'], check=True, capture_output=True, text=True)
+        print (result.stdout)
+        print ("GPG keys have been verified")
+        report_file.write("                  -APT key list view completed-\n")
+    except subprocess.CalledProcessError as e:
+        print ("Error has occurred when verifying 'apt-key list': {e}") 
+        report_file.write("                 -Error has occurred when verifying APT key list-\n")
+
+
+def apt_upgrade(simulate=False):
+
+    try:
+        print ("Welcome to the System")
+
+        policy_option = input("Do you want to view APT package policy? (y/n): ").lower()
+
+        if policy_option == 'y':
+            run_apt_cache_policy()
+
+        key_option = input("Do you want to view APT key list? (y/n): ").lower()
+     
+        if key_option == 'y':
+            run_apt_key_list()
+
+        upgrade_option = input("Do you want to simulate an APT upgrade (s) or perform (p) an APT upgrade? ").lower()
+
+        if upgrade_option == 's':
+            subprocess.run(['sudo', 'apt', 'update'], check=True)
+            result = subprocess.run(['apt', '-s', 'upgrade'], check=True, capture_output=True, text=True)
+            print (result.stdout)
+            print ("APT upgrade simulation completed.")
+            report_file.write("                   -APT ugrade simulation completed-\n")
+        elif upgrade_option == 'p':
+            subprocess.run(['sudo', 'apt', 'update'], check=True)
+            subprocess.run(['sudo', 'apt', 'upgrade', '-y'], check=True)
+            print ("APT upgrade completed successfully.")
+            report_file.write("                   -APT upgrade completed successfully-\n")
+        else:
+             print ("Invalid option. Please choose 's' to simulate or 'p' to perform an APT upgrade.")
+    except subprocess.CalledProcessError as e:
+        print (f"Error has occurred during APT upgrade: {e}")
+
+def check_motd_for_patterns():
+
+    try:
+        with open('/etc/motd', 'r') as motd_file:
+            motd_content = motd_file.read()
+
+            #Defining the pattern
+            pattern = re.compile(r'Welcome to the system!', re.IGNORECASE)
+
+            #Search for the pattern in the motd content
+            match = pattern.search(motd_content)
+
+            if match:
+                print ("Welcome to the system!")
+                report_file.write(f"                           -Welcome to the system found in /etc/motd.- \n")
+            else:
+                report_file.write(f"                           -Welcome to the system not found in /etc/motd.- \n")
+    except FileNotFoundError:
+       print ("Error: /etc/motd not found")
+    except Exception as e:
+       print (f"Error: {e}")
+
+
+
+
+#Write the message to '/etc/issue.net'
+    message = "Authorized use only. All activity may be monitored and reported.\n"
+
+    with open('/etc/issue.net', 'w') as file:
+        file.write(message)
+        print ("Message written to /etc/issue.net.\n")
+
+#Read the contents of '/etc/issue.net'
+    with open('/etc/issue.net', 'r') as file:
+        content = file.read()
+        print (f"Contents of /etc/issue.net:\n{content}")
+
+
+#Check for patterns in /etc/issue
+def check_issue_for_patterns():
+
+    try: 
+        #Get the value of the ID field from /etc/os-release
+        os_release_id = subprocess.check_output(['grep', '^ID=', '/etc/os-release']).decode('utf-8').split('=')[1].strip().replace('"', '')
+   
+        #Construct the pattern 
+        pattern = re.compile(f"(\\\v|\\\r|\\\m|\\\s|{os_release_id})", re.IGNORECASE)
+
+        #Search for the pattern in the content of /etc/issue
+        with open('/etc/issue', 'r') as issue_file:
+            issue_content = issue_file.read()
+            match = pattern.search(issue_content)
+
+            if match:
+                print ("Pattern found in /etc/issue.")
+            else:
+                print ("Pattern not found in /etc/issue.")
+
+    except FileNotFoundError:
+        print ("Error: /etc/issue not found.")
+    except subprocess.CalledProcessError as e:
+        print (f"Error running 'grep' command: {e}")
+    except Exception as e:
+        print (f"Error: {e}")
+
+
+#Check for patterns in /etc/issue.net
+def check_issue_net_for_patterns():
+    try:
+        #Get the value of the ID field from /etc/os-release
+        os_release_id = subprocess.check_output(['grep', '^ID=', '/etc/os-release']).decode('utf-8').split('=')[1].strip().replace('"', '')
+
+        #Construct the pattern
+        pattern = re.compile(f"(\\\v|\\\r|\\\m|\\\s|{os_release_id})", re.IGNORECASE)
+
+        #Open and read /etc/issue.net
+        with open('/etc/issue.net', 'r') as issue_net_file:
+            for line in issue_net_file:
+                if re.search(pattern, line, re.IGNORECASE):
+                    print (line.strip()) 
+
+
+    except FileNotFoundError:
+        print ("Error: /etc/issue.net not found.")
+    except subprocess.CalledProcessError as e: 
+        print (f"Error running 'grep' command {e}")
+    except Exception as e:
+        print (f"Error: {e}")
+
+
+
+
+def get_file_info_etc_motd(file_path):
+
+    if os.path.exists(file_path):
+        file_stat = os.stat(file_path)
+        access_mode_octal = oct(file_stat.st_mode & 0o777)  #Extract the permission bits and convert to octal
+        access_mode_human = stat.filemode(file_stat.st_mode)
+        uid = file_stat.st_uid
+        gid = file_stat.st_gid
+        username = os.path.basename(os.path.expanduser('~'))
+        groupname = os.path.basename(os.path.expanduser('~'))
+
+        report_file.write("Access: ({access_mode_octal}/{access_mode_human}) Uid: ({uid}/{username}) Gid: ({gid})/{groupname}) for /etc/motd-\n")
+    else:
+        report_file.write("Nothing is returned")
+
+
+file_path = '/etc/motd'
+result = get_file_info_etc_motd(file_path)
+print (result)
+
+
+
+def set_file_permissions_etc_motd(file_path, owner_uid, owner_gid, permissions):
+    try:
+        #Change ownership to specified UID and GID
+        os.chown(file_path, owner_uid, owner_gid)
+
+        #Set permissions
+        os.chmod(file_path, permissions)
+        print (f"Permissions for {file_path} set successfully.")
+        report_file.write("                           -Permission for /etc/motd set successfully-\n")
+    except OSError as e:
+        print (f"Error when setting permissions: {e}")
+
+def ask_user_set_perm_etc_motd():
+
+    while True:
+         response = input("Do you want to set permissions for /etc/motd ? (y/n): ").lower()
+         if response == 'y':
+             return True
+         elif response == 'n':
+             return False
+         else:
+             print ("Invalid response. Please enter (y) or (n).")
+
+
+#Example usage
+motd_path = os.path.realpath('/etc/motd')
+
+if ask_user_set_perm_etc_motd():
+    set_file_permissions_etc_motd(motd_path, 0, 0, 0o644)
+else:
+    print ("Permissions not set.")
+    report_write.file("                                    -Permissions for /etc/motd not set-\n")
+
+
+
+
+def get_file_info_etc_issue(file_path):
+
+    if os.path.exists(file_path):
+        file_stat = os.stat(file_path)
+        access_mode_octal = oct(file_stat.st_mode & 0o777)  #Extract the permissi>
+        access_mode_human_read = stat.filemode(file_stat.st_mode)
+        uid = file_stat.st_uid
+        gid = file_stat.st_gid
+        username = os.path.basename(os.path.expanduser('~'))
+        groupname = os.path.basename(os.path.expanduser('~'))
+
+        report_file.write("Access: ({access_mode_octal}/{access_mode_human_read}) Uid: ({uid}/{username}) Gid: ({gid}/{groupname}) for /etc/issue - \n")
+    else:
+        report_file.write("Nothing is returned")
+
+
+file_path = '/etc/issue'
+result = get_file_info_etc_issue(file_path)
+print (result)
+
+
+
+
+def change_ownership_etc_issue(file_path, owner, group):
+    try:
+       os.chown(file_path, owner, group)
+       print (f"Ownership for {file_path} changed to {owner}:{group}.")
+       report_file.write(                          "-Ownership for etc/issue changed-\n")
+    except Exception as e:
+       print (f"Error when changing ownership: {e}")
+
+def change_permissions_etc_issue(file_path, permissions):
+    try:
+       os.chmod(file_path, permissions)
+       print (f"Permissions for {file_path} changed to {oct(permissions)[2:]}.")
+       report_file.write("                           -Permission for etc/issue changed-\n")
+    except Exception as e:
+       print (f"Error when changing the permissions: {e}")
+
+#Example usage
+file_path = '/etc/issue'
+
+#Ask the user if they want to change the ownership
+change_owner_option = input("Do you want to change the ownership for owner? (y/n): ").lower()
+if change_owner_option == 'y':
+    new_owner_option = input("Enter the new owner UID: ")
+
+#Ask the user if they want to change the group
+    change_group_option = input("Do you want to change group? (y/n): ").lower()
+    if change_group_option == 'y':
+       new_group_option = input("Enter the new group GID: ")
+    else:
+       new_group_option = -1 #Use -1 to indicate no change in the group
+
+       change_ownership_etc_issue(file_path, new_owner_option, new_group_option)
+    
+       
+
+#Ask the user if they want to change permissions
+change_permissions_input = input("Do you want to change the permissions /etc/issue file? (y/n): ").lower()
+if change_permissions_input == 'y':
+    new_permissions = input("Enter the new permissions in octal format: "),8
+    print ("Permission for etc/issue changed")
+    report_file.write("                       -Permission for etc/issue changed successfully-\n")
+    change_permissions_etc_issue(file_path, new_permissions)
+
+
+
+
+def get_file_info_etc_issue_net(file_path):
+
+    if os.path.exists(file_path):
+       file_stat = os.stat(file_path)
+       access_mode_octal = oct(file_stat.st_mode & 0o777) #Extract the permission bits and convert to octal
+       access_mode_human_read = stat.filemode(file_stat.st_mode)
+       uid = file_stat.st_uid
+       gid = file_stat.st_gid
+       username = os.path.basename(os.path.expanduser('~'))
+       groupname = os.path.basename(os.path.expanduser('~'))
+
+       report_file.write("Access: ({access_mode_octal}/{access_mode_human_read}) Uid: ({uid}/{username}) Gid: ({gid}/{groupname}) for /etc/issue/net\n")
+   
+    else: 
+       report_file.write("Nothing is returned\n") 
+
+file_path = '/etc/issue/net'
+result = get_file_info_etc_issue_net(file_path)
+print (result)
+
+
+def set_permissions_change_ownership_etc_issue_net(file_path):
+    try:
+       #Get the new owner and group
+        new_owner = input("Enter the new UID: ")
+        new_group = input("Enter the new GID: ")
+   
+        #Change ownership to the specified UID and GID
+        os.chown(file_path, new_owner, new_group)
+
+        #Change permissions to u-x, go-wx (0644)
+        os.chmod(file_path, 0o644)
+
+
+        print (f"Ownership and permissions for {file_path} set successfully")
+        report_file.write("                        -Ownership and permissions for etc/issue/net set succesfuly-\n")
+    except OSError as e:
+        print (f"Error when setting ownership and permissions: {e}")
+
+file_path = 'etc/issue/net'
+
+#Ask the user if they want to set the ownership and permission
+set_permissions_option = input(f"Do you want to set ownership and permissions for {file_path}? (y/n): ").lower()
+
+if set_permissions_option == 'y':
+  set_permissions_change_ownership_etc_issue_net(file_path, new_owner, new_group)
+else:
+  print ("Ownership and permissions not set")
+
+
+
+
+
+if __name__ == "__main__":
+    initial_head()
+    check_motd_for_patterns()
+    apt_upgrade(simulate=True)
+    check_issue_for_patterns()
+    check_issue_net_for_patterns()
+
+report_file.close()
+
+
